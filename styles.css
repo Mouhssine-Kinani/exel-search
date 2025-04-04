@@ -1,0 +1,65 @@
+/* Additional styles beyond Tailwind */
+
+/* Table styles */
+#resultsTable {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+#resultsTable th, #resultsTable td {
+    padding: 0.75rem;
+    text-align: left;
+    border: 1px solid #e2e8f0;
+}
+
+#resultsTable th {
+    background-color: #f8fafc;
+    font-weight: 600;
+}
+
+#resultsTable tr:nth-child(even) {
+    background-color: #f1f5f9;
+}
+
+#resultsTable tr:hover {
+    background-color: #e0f2fe;
+}
+
+/* File upload animation */
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.5;
+    }
+}
+
+.file-uploading {
+    animation: pulse 1.5s ease-in-out infinite;
+}
+
+/* Unmatched items styling */
+.unmatched-item {
+    background-color: #fee2e2;
+    border-left: 4px solid #ef4444;
+    padding: 0.5rem 1rem;
+    border-radius: 0.25rem;
+}
+
+/* Loading indicator */
+.loading {
+    display: inline-block;
+    width: 1.5rem;
+    height: 1.5rem;
+    border: 3px solid rgba(59, 130, 246, 0.3);
+    border-radius: 50%;
+    border-top-color: #3b82f6;
+    animation: spin 1s ease-in-out infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}

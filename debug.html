@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Excel Debugger</title>
+    <script src="https://cdn.sheetjs.com/xlsx-0.19.3/package/dist/xlsx.full.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        table { border-collapse: collapse; width: 100%; margin: 20px 0; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+        .search-container { margin: 20px 0; }
+        input { padding: 8px; width: 300px; }
+        button { padding: 8px 20px; background: #4285f4; color: white; border: none; cursor: pointer; }
+        .results { margin-top: 20px; }
+    </style>
+</head>
+<body>
+    <h1>Excel File Debugger</h1>
+    
+    <input type="file" id="fileInput" accept=".xlsx, .xls" />
+    
+    <div id="sheetInfo"></div>
+    
+    <div class="search-container">
+        <input type="text" id="searchTerm" placeholder="Enter search term (e.g., XLSPH1104)" />
+        <button onclick="searchData()">Search</button>
+    </div>
+    
+    <div class="results" id="searchResults"></div>
+    
+    <div id="dataPreview"></div>
+    
+    <script>
+        let excelData = [];
+        let rawRows = [];
+        
+        document.getElementById('fileInput').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    
+                    // Get the first sheet
+                    const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                    
+                    // Get raw rows
+                    rawRows = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
+                    
+                    // Display sheet info
+                    const sheetInfo = document.getElementById('sheetInfo');
+                    sheetInfo.innerHTML = `
+                        <h2>Excel File Structure</h2>
+                        <p>Sheet Name: ${workbook.SheetNames[0]}</p>
+                        <p>Total Rows: ${rawRows.length}</p>
+                        <p>Columns in first row: ${rawRows[0].length}</p>
+                    `;
+                    
+                    // Check column structure - show first 3 rows
+                    let tableHtml = '<h2>First 3 Rows (Raw Data)</h2>';
+                    tableHtml += '<table>';
+                    
+                    // Headers
+                    tableHtml += '<tr>';
+                    for (let i = 0; i < rawRows[0].length; i++) {
+                        tableHtml += `<th>Column ${i} (${rawRows[0][i] || 'Empty'})</th>`;
+                    }
+                    tableHtml += '</tr>';
+                    
+                    // Data rows
+                    for (let i = 1; i < Math.min(4, rawRows.length); i++) {
+                        tableHtml += '<tr>';
+                        for (let j = 0; j < rawRows[0].length; j++) {
+                            tableHtml += `<td>${rawRows[i][j] !== undefined ? rawRows[i][j] : 'Empty'}</td>`;
+                        }
+                        tableHtml += '</tr>';
+                    }
+                    
+                    tableHtml += '</table>';
+                    
+                    // Process data for searching
+                    excelData = rawRows.slice(1).map(row => {
+                        return {
+                            ref_article: row[1] !== undefined ? String(row[1]) : '',
+                            designation: row[2] !== undefined ? String(row[2]) : '',
+                            item_number: row[0] !== undefined ? String(row[0]) : '',
+                            localisation: row[3] !== undefined ? String(row[3]) : ''
+                        };
+                    });
+                    
+                    // Show formatted data
+                    tableHtml += '<h2>Processed Data for Search (First 3 Rows)</h2>';
+                    tableHtml += '<table>';
+                    tableHtml += '<tr><th>ref_article</th><th>designation</th></tr>';
+                    
+                    for (let i = 0; i < Math.min(3, excelData.length); i++) {
+                        tableHtml += `<tr>
+                            <td>${excelData[i].ref_article}</td>
+                            <td>${excelData[i].designation}</td>
+                        </tr>`;
+                    }
+                    
+                    tableHtml += '</table>';
+                    
+                    document.getElementById('dataPreview').innerHTML = tableHtml;
+                    
+                    // Specifically check for XLSPH1104
+                    const specificCheck = excelData.filter(item => 
+                        item.ref_article && 
+                        item.ref_article.includes('XLSPH1104'));
+                    
+                    if (specificCheck.length > 0) {
+                        let matchHtml = '<h2>XLSPH1104 Found!</h2>';
+                        matchHtml += '<table>';
+                        matchHtml += '<tr><th>ref_article</th><th>designation</th></tr>';
+                        
+                        specificCheck.forEach(item => {
+                            matchHtml += `<tr>
+                                <td>${item.ref_article}</td>
+                                <td>${item.designation}</td>
+                            </tr>`;
+                        });
+                        
+                        matchHtml += '</table>';
+                        document.getElementById('searchResults').innerHTML = matchHtml;
+                    } else {
+                        document.getElementById('searchResults').innerHTML = '<p>XLSPH1104 not found in data!</p>';
+                        
+                        // Try to find any similar patterns
+                        const similar = excelData.filter(item => 
+                            item.ref_article && 
+                            item.ref_article.includes('XLSPH'));
+                        
+                        if (similar.length > 0) {
+                            let similarHtml = '<h3>Similar items with "XLSPH" pattern:</h3>';
+                            similarHtml += '<table>';
+                            similarHtml += '<tr><th>ref_article</th><th>designation</th></tr>';
+                            
+                            similar.slice(0, 5).forEach(item => {
+                                similarHtml += `<tr>
+                                    <td>${item.ref_article}</td>
+                                    <td>${item.designation}</td>
+                                </tr>`;
+                            });
+                            
+                            similarHtml += '</table>';
+                            document.getElementById('searchResults').innerHTML += similarHtml;
+                        }
+                    }
+                    
+                } catch (error) {
+                    console.error('Error processing file:', error);
+                    document.getElementById('dataPreview').innerHTML = `<p>Error: ${error.message}</p>`;
+                }
+            };
+            
+            reader.readAsArrayBuffer(file);
+        });
+        
+        function searchData() {
+            const searchTerm = document.getElementById('searchTerm').value.trim();
+            if (!searchTerm || excelData.length === 0) return;
+            
+            // First try exact match
+            const exactMatches = excelData.filter(item => 
+                (item.ref_article && item.ref_article.toLowerCase() === searchTerm.toLowerCase()) ||
+                (item.designation && item.designation.toLowerCase() === searchTerm.toLowerCase())
+            );
+            
+            // Then try includes match
+            const partialMatches = excelData.filter(item => 
+                (item.ref_article && item.ref_article.toLowerCase().includes(searchTerm.toLowerCase())) ||
+                (item.designation && item.designation.toLowerCase().includes(searchTerm.toLowerCase()))
+            );
+            
+            let resultsHtml = `<h2>Search Results for "${searchTerm}"</h2>`;
+            
+            if (exactMatches.length > 0) {
+                resultsHtml += '<h3>Exact Matches</h3>';
+                resultsHtml += '<table>';
+                resultsHtml += '<tr><th>ref_article</th><th>designation</th></tr>';
+                
+                exactMatches.forEach(item => {
+                    resultsHtml += `<tr>
+                        <td>${item.ref_article}</td>
+                        <td>${item.designation}</td>
+                    </tr>`;
+                });
+                
+                resultsHtml += '</table>';
+            }
+            
+            if (partialMatches.length > 0 && partialMatches.length !== exactMatches.length) {
+                resultsHtml += '<h3>Partial Matches</h3>';
+                resultsHtml += '<table>';
+                resultsHtml += '<tr><th>ref_article</th><th>designation</th></tr>';
+                
+                // Remove exact matches from partial matches to avoid duplication
+                const uniquePartialMatches = partialMatches.filter(item => 
+                    !exactMatches.some(exact => exact.ref_article === item.ref_article)
+                );
+                
+                uniquePartialMatches.forEach(item => {
+                    resultsHtml += `<tr>
+                        <td>${item.ref_article}</td>
+                        <td>${item.designation}</td>
+                    </tr>`;
+                });
+                
+                resultsHtml += '</table>';
+            }
+            
+            if (exactMatches.length === 0 && partialMatches.length === 0) {
+                resultsHtml += '<p>No matches found</p>';
+            }
+            
+            document.getElementById('searchResults').innerHTML = resultsHtml;
+        }
+    </script>
+</body>
+</html>
