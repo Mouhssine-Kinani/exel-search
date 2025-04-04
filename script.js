@@ -18,8 +18,6 @@ const noMatchesFound = document.getElementById('noMatchesFound');
 const unmatchedSection = document.getElementById('unmatchedSection');
 const unmatchedInputs = document.getElementById('unmatchedInputs');
 const matchedInputs = document.getElementById('matchedInputs');
-const debugBtn = document.getElementById('debugBtn');
-const debugOutput = document.getElementById('debugOutput');
 const downloadBtn = document.getElementById('downloadBtn');
 const matchedCount = document.getElementById('matchedCount');
 const unmatchedCount = document.getElementById('unmatchedCount');
@@ -33,92 +31,6 @@ searchBtn.addEventListener('click', performSearch);
 
 // Download button event listener
 downloadBtn.addEventListener('click', downloadResults);
-
-// Debug button event listener
-debugBtn.addEventListener('click', function() {
-    debugOutput.classList.toggle('hidden');
-    
-    if (!debugOutput.classList.contains('hidden')) {
-        // Show debug information
-        let debugHtml = '<h3>Debug Information</h3>';
-        
-        // Check if data is loaded
-        if (excelData.length === 0) {
-            debugHtml += '<p>No Excel data loaded yet!</p>';
-        } else {
-            debugHtml += `<p>Loaded ${excelData.length} records</p>`;
-            
-            // Show first 5 records
-            debugHtml += '<p><strong>First 5 Records:</strong></p>';
-            debugHtml += '<ol>';
-            for (let i = 0; i < Math.min(5, excelData.length); i++) {
-                const item = excelData[i];
-                debugHtml += `<li>ref_article: "${item.ref_article || 'undefined'}", designation: "${item.designation || 'undefined'}"</li>`;
-            }
-            debugHtml += '</ol>';
-            
-            // Test search for common values
-            const testTerms = ['4S', 'TRANSPARENT', 'XLSPH1104'];
-            debugHtml += '<p><strong>Test Searches:</strong></p>';
-            debugHtml += '<ul>';
-            
-            testTerms.forEach(term => {
-                const matches = excelData.filter(item => 
-                    (item.ref_article && item.ref_article.toString().toLowerCase().includes(term.toLowerCase())) ||
-                    (item.designation && item.designation.toString().toLowerCase().includes(term.toLowerCase()))
-                );
-                debugHtml += `<li>Search for "${term}": ${matches.length} matches</li>`;
-            });
-            
-            debugHtml += '</ul>';
-        }
-        
-        debugOutput.innerHTML = debugHtml;
-    }
-});
-
-// Function to download results as Excel
-function downloadResults() {
-    if (!matchedResults || matchedResults.length === 0) {
-        alert('No results to download');
-        return;
-    }
-    
-    try {
-        // Create a new workbook
-        const wb = XLSX.utils.book_new();
-        
-        // If we have the original headers, convert the matched results to use them
-        if (originalHeaders.length > 0) {
-            // Create a new array with the original header names
-            const resultsWithOriginalHeaders = matchedResults.map(item => {
-                const newItem = {};
-                // Map each property to its original header name
-                Object.keys(item).forEach(key => {
-                    const originalHeader = headerMapping[key] || key;
-                    newItem[originalHeader] = item[key];
-                });
-                return newItem;
-            });
-            
-            // Convert to worksheet with original headers preserved
-            const ws = XLSX.utils.json_to_sheet(resultsWithOriginalHeaders);
-            XLSX.utils.book_append_sheet(wb, ws, 'SearchResults');
-        } else {
-            // If no original headers available, use the default conversion
-            const ws = XLSX.utils.json_to_sheet(matchedResults);
-            XLSX.utils.book_append_sheet(wb, ws, 'SearchResults');
-        }
-        
-        // Generate download with current date in filename
-        const now = new Date();
-        const dateStr = `${now.getFullYear()}-${(now.getMonth()+1).toString().padStart(2, '0')}-${now.getDate().toString().padStart(2, '0')}`;
-        XLSX.writeFile(wb, `search_results_${dateStr}.xlsx`);
-    } catch (error) {
-        console.error('Error creating Excel file:', error);
-        alert('Error creating Excel file: ' + error.message);
-    }
-}
 
 /**
  * Handle Excel file upload and processing
@@ -329,11 +241,14 @@ function performSearch() {
             
             if (result.matches.length > 0) {
                 matchedQueries.push(term);
-                // Add unique results to matchedResults array
+                // Add all matching results to matchedResults array
                 result.matches.forEach(item => {
-                    // Check if this item is already in matchedResults
+                    // Create a unique identifier based on all fields to properly identify duplicates
+                    const itemSignature = JSON.stringify(item);
+                    
+                    // Check if exactly this item is already in matchedResults
                     const exists = matchedResults.some(existing => 
-                        existing.ref_article === item.ref_article);
+                        JSON.stringify(existing) === itemSignature);
                     
                     if (!exists) {
                         matchedResults.push(item);
@@ -350,11 +265,14 @@ function performSearch() {
             
             if (result.matches.length > 0) {
                 matchedQueries.push(term);
-                // Add unique results to matchedResults array
+                // Add all matching results to matchedResults array
                 result.matches.forEach(item => {
-                    // Check if this item is already in matchedResults
+                    // Create a unique identifier based on all fields to properly identify duplicates
+                    const itemSignature = JSON.stringify(item);
+                    
+                    // Check if exactly this item is already in matchedResults
                     const exists = matchedResults.some(existing => 
-                        existing.ref_article === item.ref_article);
+                        JSON.stringify(existing) === itemSignature);
                     
                     if (!exists) {
                         matchedResults.push(item);
@@ -375,7 +293,88 @@ function performSearch() {
 }
 
 /**
- * Search for a single term in the specified field
+ * Normalize text by removing diacritical marks and converting to lowercase
+ */
+function normalizeText(text) {
+    if (!text) return '';
+    
+    // Convert to string if not already
+    const str = String(text);
+    
+    // Normalize and remove diacritical marks
+    return str.normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '') // Remove combining diacritical marks
+        .toLowerCase()
+        .trim();
+}
+
+/**
+ * Check if two strings match using flexible criteria
+ */
+function flexibleMatch(source, target, matchType = 'contains') {
+    if (!source || !target) return false;
+    
+    // Normalize both strings
+    const normalizedSource = normalizeText(source);
+    const normalizedTarget = normalizeText(target);
+    
+    // Check based on match type
+    switch (matchType) {
+        case 'exact':
+            return normalizedSource === normalizedTarget;
+        case 'startsWith':
+            return normalizedSource.startsWith(normalizedTarget);
+        case 'contains':
+        default:
+            return normalizedSource.includes(normalizedTarget);
+    }
+}
+
+/**
+ * Similar words check (simple implementation without external libraries)
+ */
+function areSimilarWords(str1, str2) {
+    // Both strings should be at least 3 characters for this to be meaningful
+    if (!str1 || !str2 || str1.length < 3 || str2.length < 3) return false;
+    
+    // Normalize strings
+    const norm1 = normalizeText(str1);
+    const norm2 = normalizeText(str2);
+    
+    // Check for common prefixes (at least 3 chars)
+    if (norm1.length >= 3 && norm2.length >= 3) {
+        const prefix1 = norm1.substring(0, 3);
+        const prefix2 = norm2.substring(0, 3);
+        if (prefix1 === prefix2) return true;
+    }
+    
+    // Check for similar words by comparing trigrams
+    const getTrigrams = str => {
+        const results = [];
+        for (let i = 0; i < str.length - 2; i++) {
+            results.push(str.substring(i, i + 3));
+        }
+        return results;
+    };
+    
+    const trigrams1 = getTrigrams(norm1);
+    const trigrams2 = getTrigrams(norm2);
+    
+    // Count shared trigrams
+    let sharedCount = 0;
+    for (const t1 of trigrams1) {
+        if (trigrams2.includes(t1)) sharedCount++;
+    }
+    
+    // Calculate Dice coefficient similarity
+    const similarity = (2 * sharedCount) / (trigrams1.length + trigrams2.length);
+    
+    // Return true if similarity is above threshold
+    return similarity > 0.4; // Adjust threshold as needed
+}
+
+/**
+ * Search for a single term in the specified field with enhanced matching
  */
 function searchSingleTerm(term, field) {
     const matches = [];
@@ -384,59 +383,66 @@ function searchSingleTerm(term, field) {
     const cleanTerm = term.trim().toLowerCase();
     console.log(`Searching for ${field}: "${cleanTerm}"`);
     
-    // 1. Try exact match first (case insensitive)
+    // 1. Try exact match first (including accent-insensitive)
     const exactMatches = excelData.filter(item => {
         if (!item[field]) return false;
-        const itemValue = item[field].toString().trim().toLowerCase();
-        return itemValue === cleanTerm;
+        return flexibleMatch(item[field], cleanTerm, 'exact');
     });
     
     if (exactMatches.length > 0) {
         console.log(`Found ${exactMatches.length} exact matches for "${cleanTerm}"`);
         matches.push(...exactMatches);
-    } else {
-        // 2. Try startsWith match
-        const startsWithMatches = excelData.filter(item => {
-            if (!item[field]) return false;
-            const itemValue = item[field].toString().trim().toLowerCase();
-            return itemValue.startsWith(cleanTerm);
-        });
+    }
+    
+    // 2. Try startsWith match (including accent-insensitive)
+    const startsWithMatches = excelData.filter(item => {
+        if (!item[field]) return false;
+        if (matches.includes(item)) return false; // Skip if already matched
+        return flexibleMatch(item[field], cleanTerm, 'startsWith');
+    });
+    
+    if (startsWithMatches.length > 0) {
+        console.log(`Found ${startsWithMatches.length} startsWith matches for "${cleanTerm}"`);
+        matches.push(...startsWithMatches);
+    }
+    
+    // 3. Try contains match (including accent-insensitive)
+    const containsMatches = excelData.filter(item => {
+        if (!item[field]) return false;
+        if (matches.includes(item)) return false; // Skip if already matched
+        return flexibleMatch(item[field], cleanTerm, 'contains');
+    });
+    
+    if (containsMatches.length > 0) {
+        console.log(`Found ${containsMatches.length} contains matches for "${cleanTerm}"`);
+        matches.push(...containsMatches);
+    }
+    
+    // 4. Check for similar words/variations
+    const similarMatches = excelData.filter(item => {
+        if (!item[field]) return false;
+        if (matches.includes(item)) return false; // Skip if already matched
         
-        if (startsWithMatches.length > 0) {
-            console.log(`Found ${startsWithMatches.length} startsWith matches for "${cleanTerm}"`);
-            matches.push(...startsWithMatches);
-        } else {
-            // 3. Try contains match
-            const containsMatches = excelData.filter(item => {
-                if (!item[field]) return false;
-                const itemValue = item[field].toString().trim().toLowerCase();
-                return itemValue.includes(cleanTerm);
-            });
-            
-            if (containsMatches.length > 0) {
-                console.log(`Found ${containsMatches.length} contains matches for "${cleanTerm}"`);
-                matches.push(...containsMatches);
-            } else {
-                // 4. For multiword searches, try word matching
-                if (cleanTerm.includes(' ')) {
-                    const words = cleanTerm.split(' ').filter(w => w.length > 2);
-                    
-                    if (words.length > 0) {
-                        const wordMatches = excelData.filter(item => {
-                            if (!item[field]) return false;
-                            const itemValue = item[field].toString().trim().toLowerCase();
-                            
-                            return words.some(word => itemValue.includes(word));
-                        });
-                        
-                        if (wordMatches.length > 0) {
-                            console.log(`Found ${wordMatches.length} word matches for "${cleanTerm}"`);
-                            matches.push(...wordMatches);
-                        }
-                    }
-                }
-            }
+        const itemValue = String(item[field]);
+        
+        // Handle multi-word fields and search terms
+        const itemWords = itemValue.split(/\s+/);
+        
+        // If search term has multiple words
+        if (cleanTerm.includes(' ')) {
+            const searchWords = cleanTerm.split(' ').filter(w => w.length > 2);
+            return searchWords.some(searchWord => 
+                itemWords.some(itemWord => areSimilarWords(itemWord, searchWord))
+            );
         }
+        
+        // Single word search term
+        return itemWords.some(word => areSimilarWords(word, cleanTerm));
+    });
+    
+    if (similarMatches.length > 0) {
+        console.log(`Found ${similarMatches.length} similar word matches for "${cleanTerm}"`);
+        matches.push(...similarMatches);
     }
     
     return { term, matches };
@@ -507,4 +513,49 @@ function resetResults() {
     noMatchesFound.classList.add('hidden');
     unmatchedSection.classList.add('hidden');
     resultsSection.classList.add('hidden');
+}
+
+/**
+ * Function to download results as Excel
+ */
+function downloadResults() {
+    if (!matchedResults || matchedResults.length === 0) {
+        alert('No results to download');
+        return;
+    }
+    
+    try {
+        // Create a new workbook
+        const wb = XLSX.utils.book_new();
+        
+        // If we have the original headers, convert the matched results to use them
+        if (originalHeaders.length > 0) {
+            // Create a new array with the original header names
+            const resultsWithOriginalHeaders = matchedResults.map(item => {
+                const newItem = {};
+                // Map each property to its original header name
+                Object.keys(item).forEach(key => {
+                    const originalHeader = headerMapping[key] || key;
+                    newItem[originalHeader] = item[key];
+                });
+                return newItem;
+            });
+            
+            // Convert to worksheet with original headers preserved
+            const ws = XLSX.utils.json_to_sheet(resultsWithOriginalHeaders);
+            XLSX.utils.book_append_sheet(wb, ws, 'SearchResults');
+        } else {
+            // If no original headers available, use the default conversion
+            const ws = XLSX.utils.json_to_sheet(matchedResults);
+            XLSX.utils.book_append_sheet(wb, ws, 'SearchResults');
+        }
+        
+        // Generate download with current date in filename
+        const now = new Date();
+        const dateStr = `${now.getFullYear()}-${(now.getMonth()+1).toString().padStart(2, '0')}-${now.getDate().toString().padStart(2, '0')}`;
+        XLSX.writeFile(wb, `search_results_${dateStr}.xlsx`);
+    } catch (error) {
+        console.error('Error creating Excel file:', error);
+        alert('Error creating Excel file: ' + error.message);
+    }
 }
