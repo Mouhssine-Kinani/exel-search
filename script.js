@@ -3,6 +3,8 @@ let excelData = [];
 let matchedResults = []; // Store matched results for download
 let matchedQueries = []; // Store queries that matched at least one article
 let unmatchedQueries = []; // Store queries that didn't match any article
+let originalHeaders = []; // Store original headers from uploaded Excel file
+let headerMapping = {}; // Map between internal column names and original headers
 
 // DOM elements
 const fileInput = document.getElementById('fileInput');
@@ -86,11 +88,27 @@ function downloadResults() {
         // Create a new workbook
         const wb = XLSX.utils.book_new();
         
-        // Convert matched results to worksheet - preserving original data format
-        const ws = XLSX.utils.json_to_sheet(matchedResults);
-        
-        // Add worksheet to workbook
-        XLSX.utils.book_append_sheet(wb, ws, 'SearchResults');
+        // If we have the original headers, convert the matched results to use them
+        if (originalHeaders.length > 0) {
+            // Create a new array with the original header names
+            const resultsWithOriginalHeaders = matchedResults.map(item => {
+                const newItem = {};
+                // Map each property to its original header name
+                Object.keys(item).forEach(key => {
+                    const originalHeader = headerMapping[key] || key;
+                    newItem[originalHeader] = item[key];
+                });
+                return newItem;
+            });
+            
+            // Convert to worksheet with original headers preserved
+            const ws = XLSX.utils.json_to_sheet(resultsWithOriginalHeaders);
+            XLSX.utils.book_append_sheet(wb, ws, 'SearchResults');
+        } else {
+            // If no original headers available, use the default conversion
+            const ws = XLSX.utils.json_to_sheet(matchedResults);
+            XLSX.utils.book_append_sheet(wb, ws, 'SearchResults');
+        }
         
         // Generate download with current date in filename
         const now = new Date();
@@ -128,6 +146,8 @@ function handleFileUpload(e) {
             
             // Process all sheets and combine the data
             excelData = [];
+            originalHeaders = []; // Reset original headers
+            headerMapping = {}; // Reset header mapping
             
             for (const sheetName of sheetNames) {
                 console.log(`Processing sheet: ${sheetName}`);
@@ -144,6 +164,12 @@ function handleFileUpload(e) {
                 // Skip completely empty rows but don't filter based on specific columns
                 const nonEmptyRows = sheetRows.filter(row => row.some(cell => cell !== ''));
                 console.log(`Non-empty rows for ${sheetName}: ${nonEmptyRows.length}`);
+                
+                // Store original headers if this is the first sheet we process
+                if (originalHeaders.length === 0 && nonEmptyRows.length > 0) {
+                    originalHeaders = nonEmptyRows[0].map(header => header ? String(header) : '');
+                    console.log("Original headers:", originalHeaders);
+                }
                 
                 // Determine column indices (default to B=1 and C=2 if can't detect)
                 let refArticleIndex = 1; // Default to column B
@@ -163,6 +189,21 @@ function handleFileUpload(e) {
                         }
                     }
                 }
+                
+                // Create mapping between our column names and original headers
+                headerMapping = {
+                    'ref_article': originalHeaders[refArticleIndex] || 'ref_article',
+                    'designation': originalHeaders[designationIndex] || 'designation'
+                };
+                
+                // Add mappings for other columns
+                for (let i = 0; i < originalHeaders.length; i++) {
+                    if (i !== refArticleIndex && i !== designationIndex) {
+                        headerMapping[`column_${i}`] = originalHeaders[i] || `column_${i}`;
+                    }
+                }
+                
+                console.log("Header mapping:", headerMapping);
                 
                 // Process all rows including those with partial data
                 // Skip the first row if it contains headers
