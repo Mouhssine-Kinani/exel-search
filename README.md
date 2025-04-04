@@ -1,6 +1,4 @@
-<<<<<<< HEAD
 # exel-search
-=======
 # Excel Search Application
 
 A web application that allows users to import Excel files and search through the data efficiently.
@@ -44,4 +42,3 @@ This application works on all modern browsers including:
 - Firefox
 - Edge
 - Safari
->>>>>>> 195d622 (exel file)
