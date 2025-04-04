@@ -5,6 +5,7 @@ let matchedQueries = []; // Store queries that matched at least one article
 let unmatchedQueries = []; // Store queries that didn't match any article
 let originalHeaders = []; // Store original headers from uploaded Excel file
 let headerMapping = {}; // Map between internal column names and original headers
+let isFirstSearch = true; // Track if this is the first search to add special animation
 
 // DOM elements
 const fileInput = document.getElementById('fileInput');
@@ -14,6 +15,10 @@ const resultsSection = document.getElementById('resultsSection');
 const searchBtn = document.getElementById('searchBtn');
 const searchType = document.getElementById('searchType');
 const searchInput = document.getElementById('searchInput');
+
+// Animation flags
+let animationsInitialized = false;
+let resultsAnimationTimeout = null;
 const noMatchesFound = document.getElementById('noMatchesFound');
 const unmatchedSection = document.getElementById('unmatchedSection');
 const unmatchedInputs = document.getElementById('unmatchedInputs');
@@ -212,17 +217,25 @@ function parseSearchTerms(input) {
 function performSearch() {
     resetResults();
     
+    // Add a loading animation to search button
+    searchBtn.innerHTML = `<span class="loading mr-2"></span><span>Searching...</span>`;
+    searchBtn.disabled = true;
+    
     // Get the selected search type
     const selectedType = searchType.value; // 'ref_article' or 'designation'
     const searchTerms = parseSearchTerms(searchInput.value);
     
     if (searchTerms.length === 0) {
         alert('Please enter at least one search term');
+        searchBtn.innerHTML = `<span>Search</span>`;
+        searchBtn.disabled = false;
         return;
     }
     
     if (!excelData || excelData.length === 0) {
         alert('Please upload an Excel file first');
+        searchBtn.innerHTML = `<span>Search</span>`;
+        searchBtn.disabled = false;
         return;
     }
     
@@ -284,8 +297,18 @@ function performSearch() {
         });
     }
     
-    // Show results
+    // Show results with animation
     resultsSection.classList.remove('hidden');
+    
+    // Reset search button
+    searchBtn.innerHTML = `<span>Search</span>`;
+    searchBtn.disabled = false;
+    
+    // Add special entry animation for the first search
+    if (isFirstSearch) {
+        resultsSection.classList.add('animate-fade-in');
+        isFirstSearch = false;
+    }
     
     // Display matched and unmatched query lists
     displayMatchedQueries(matchedQueries, searchTerms.length);
@@ -449,38 +472,49 @@ function searchSingleTerm(term, field) {
 }
 
 /**
- * Display matched query terms
+ * Display matched query terms with animations
  */
 function displayMatchedQueries(matched, totalQueries) {
     if (matched.length === 0) {
         noMatchesFound.classList.remove('hidden');
+        noMatchesFound.classList.add('animate-fade-in');
         matchedCount.textContent = 'No matches found';
+        matchedCount.classList.add('animate-fade-in');
         downloadBtn.classList.add('hidden');
         return;
     }
     
-    // Update matched count
+    // Update matched count with animation
     matchedCount.textContent = `Matched Inputs: ${matched.length}/${totalQueries}`;
+    matchedCount.classList.add('animate-fade-in');
     
-    // Display matched queries
+    // Display matched queries without animation
     matchedInputs.innerHTML = '';
-    matched.forEach(query => {
+    matched.forEach((query) => {
         const div = document.createElement('div');
-        div.className = 'matched-item p-2 bg-green-50 border-l-4 border-green-500 rounded';
+        div.className = 'matched-item p-2 rounded';
         div.textContent = query;
         matchedInputs.appendChild(div);
     });
     
-    // Show download button if there are matched results
+    // Show download button if there are matched results with animation
     if (matchedResults.length > 0) {
         downloadBtn.classList.remove('hidden');
+        downloadBtn.classList.add('animate-fade-in');
     } else {
         downloadBtn.classList.add('hidden');
+    }
+    
+    // Create results table with slight delay for better visual flow
+    if (matchedResults.length > 0) {
+        setTimeout(() => {
+            createResultsTable(matchedResults);
+        }, 300);
     }
 }
 
 /**
- * Display unmatched queries
+ * Display unmatched queries with animations
  */
 function displayUnmatchedQueries(unmatched, totalQueries) {
     if (unmatched.length === 0) {
@@ -488,15 +522,33 @@ function displayUnmatchedQueries(unmatched, totalQueries) {
         return;
     }
     
+    // Show unmatched section with animation
     unmatchedSection.classList.remove('hidden');
-    unmatchedCount.textContent = `Unmatched Inputs: ${unmatched.length}/${totalQueries}`;
+    unmatchedSection.classList.add('animate-fade-in');
+    unmatchedSection.style.animationDelay = '0.5s';
     
+    // Add animation to count display
+    unmatchedCount.textContent = `Unmatched Inputs: ${unmatched.length}/${totalQueries}`;
+    unmatchedCount.classList.add('animate-fade-in');
+    
+    // Display unmatched items with staggered animation
     unmatchedInputs.innerHTML = '';
-    unmatched.forEach(query => {
+    unmatched.forEach((query, index) => {
         const div = document.createElement('div');
-        div.className = 'unmatched-item p-2 bg-red-50 border-l-4 border-red-500 rounded';
+        div.className = 'unmatched-item p-2 rounded';
         div.textContent = query;
+        
+        // Add staggered animation
+        div.style.opacity = '0';
+        div.style.transform = 'translateY(20px)';
+        div.style.transition = 'opacity 0.5s ease, transform 0.5s ease';
         unmatchedInputs.appendChild(div);
+        
+        // Trigger animation with slight delay based on index
+        setTimeout(() => {
+            div.style.opacity = '1';
+            div.style.transform = 'translateY(0)';
+        }, 600 + (index * 100));
     });
 }
 
@@ -516,13 +568,18 @@ function resetResults() {
 }
 
 /**
- * Function to download results as Excel
+ * Function to download results as Excel with animation
  */
 function downloadResults() {
     if (!matchedResults || matchedResults.length === 0) {
         alert('No results to download');
         return;
     }
+    
+    // Add loading animation to download button
+    const originalContent = downloadBtn.innerHTML;
+    downloadBtn.innerHTML = `<span class="loading mr-2"></span><span>Preparing...</span>`;
+    downloadBtn.disabled = true;
     
     try {
         // Create a new workbook
@@ -554,6 +611,19 @@ function downloadResults() {
         const now = new Date();
         const dateStr = `${now.getFullYear()}-${(now.getMonth()+1).toString().padStart(2, '0')}-${now.getDate().toString().padStart(2, '0')}`;
         XLSX.writeFile(wb, `search_results_${dateStr}.xlsx`);
+        
+        // Reset download button after slight delay with success animation
+        setTimeout(() => {
+            downloadBtn.innerHTML = `<svg class="w-5 h-5 inline-block mr-1 text-green-200" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+            </svg>
+            <span>Downloaded!</span>`;
+            
+            setTimeout(() => {
+                downloadBtn.innerHTML = originalContent;
+                downloadBtn.disabled = false;
+            }, 2000);
+        }, 1000);
     } catch (error) {
         console.error('Error creating Excel file:', error);
         alert('Error creating Excel file: ' + error.message);

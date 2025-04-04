@@ -1,65 +1,242 @@
-/* Additional styles beyond Tailwind */
+/* CENTRELEC Spare Parts Finder - Modern Styling */
+
+:root {
+    --primary: #0052cc;
+    --primary-light: #4c9aff;
+    --primary-dark: #003d99;
+    --secondary: #ff6b6b;
+    --accent: #ffd166;
+    --dark: #172b4d;
+    --light: #f4f5f7;
+    --gray: #6b778c;
+}
+
+/* Base Styles */
+body {
+    color: var(--dark);
+    line-height: 1.6;
+    overflow-x: hidden;
+}
+
+/* Custom Cursor */
+.custom-cursor {
+    position: fixed;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: rgba(76, 154, 255, 0.3);
+    backdrop-filter: blur(2px);
+    border: 1px solid rgba(76, 154, 255, 0.5);
+    pointer-events: none;
+    z-index: 9999;
+    transform: translate(-50%, -50%);
+    transition: width 0.3s, height 0.3s, background 0.3s;
+    mix-blend-mode: screen;
+}
+
+.cursor-hover {
+    width: 40px;
+    height: 40px;
+    background: rgba(76, 154, 255, 0.15);
+    border: 1px solid rgba(76, 154, 255, 0.7);
+}
+
+/* Modern Scrollbar */
+::-webkit-scrollbar {
+    width: 10px;
+}
+
+::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #c1d1e8;
+    border-radius: 10px;
+    transition: background 0.3s ease;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--primary-light);
+}
 
 /* Table styles */
 #resultsTable {
     width: 100%;
-    border-collapse: collapse;
+    border-collapse: separate;
+    border-spacing: 0;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
 }
 
 #resultsTable th, #resultsTable td {
-    padding: 0.75rem;
+    padding: 1rem;
     text-align: left;
-    border: 1px solid #e2e8f0;
+    border-bottom: 1px solid rgba(226, 232, 240, 0.7);
 }
 
 #resultsTable th {
-    background-color: #f8fafc;
+    background-color: rgba(248, 250, 252, 0.8);
     font-weight: 600;
+    position: relative;
+    overflow: hidden;
+}
+
+#resultsTable th::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 2px;
+    background: linear-gradient(90deg, var(--primary-light), transparent);
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 0.3s ease;
+}
+
+#resultsTable th:hover::after {
+    transform: scaleX(1);
 }
 
 #resultsTable tr:nth-child(even) {
-    background-color: #f1f5f9;
+    background-color: rgba(241, 245, 249, 0.7);
+}
+
+#resultsTable tr {
+    transition: background-color 0.3s ease, transform 0.3s ease;
 }
 
 #resultsTable tr:hover {
-    background-color: #e0f2fe;
+    background-color: rgba(224, 242, 254, 0.7);
+    transform: translateX(5px);
 }
 
-/* File upload animation */
-@keyframes pulse {
-    0%, 100% {
-        opacity: 1;
-    }
-    50% {
-        opacity: 0.5;
-    }
+/* Match and unmatch items styling */
+.matched-item {
+    background-color: rgba(220, 252, 231, 0.7);
+    border-left: 4px solid #22c55e;
+    padding: 1rem 1.25rem;
+    border-radius: 8px;
+    margin-bottom: 0.75rem;
+    transition: all 0.3s ease;
+    backdrop-filter: blur(5px);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
 }
 
-.file-uploading {
-    animation: pulse 1.5s ease-in-out infinite;
+.matched-item:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 15px rgba(0, 0, 0, 0.1);
 }
 
-/* Unmatched items styling */
 .unmatched-item {
-    background-color: #fee2e2;
+    background-color: rgba(254, 226, 226, 0.7);
     border-left: 4px solid #ef4444;
-    padding: 0.5rem 1rem;
-    border-radius: 0.25rem;
+    padding: 1rem 1.25rem;
+    border-radius: 8px;
+    margin-bottom: 0.75rem;
+    transition: all 0.3s ease;
+    backdrop-filter: blur(5px);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
 }
 
-/* Loading indicator */
+.unmatched-item:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 15px rgba(0, 0, 0, 0.1);
+}
+
+/* File upload area enhancement */
+.file-upload-area {
+    position: relative;
+    overflow: hidden;
+    isolation: isolate;
+}
+
+/* Loading indicators */
 .loading {
     display: inline-block;
-    width: 1.5rem;
-    height: 1.5rem;
-    border: 3px solid rgba(59, 130, 246, 0.3);
+    width: 2rem;
+    height: 2rem;
+    border: 3px solid rgba(76, 154, 255, 0.3);
     border-radius: 50%;
-    border-top-color: #3b82f6;
-    animation: spin 1s ease-in-out infinite;
+    border-top-color: var(--primary);
+    border-right-color: var(--primary-light);
+    animation: spin 1s cubic-bezier(0.5, 0.1, 0.5, 0.9) infinite;
 }
 
 @keyframes spin {
     to {
         transform: rotate(360deg);
+    }
+}
+
+/* Upload progress bar */
+.upload-progress {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 4px;
+    background: rgba(226, 232, 240, 0.7);
+    overflow: hidden;
+    border-radius: 0 0 8px 8px;
+    z-index: 1;
+}
+
+.upload-progress .progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, var(--primary-light), var(--primary));
+    width: 0;
+    border-radius: 2px;
+    transition: width 0.5s ease;
+}
+
+.upload-progress.complete .progress-bar {
+    background: linear-gradient(90deg, #22c55e, #16a34a);
+}
+
+/* Ripple effect for buttons */
+.ripple {
+    position: absolute;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.4);
+    transform: scale(0);
+    animation: ripple-animation 0.6s ease-out;
+    pointer-events: none;
+}
+
+@keyframes ripple-animation {
+    to {
+        transform: scale(4);
+        opacity: 0;
+    }
+}
+
+/* Animation for search results */
+.result-item {
+    opacity: 0;
+    transform: translateY(20px);
+    transition: opacity 0.5s ease, transform 0.5s ease;
+}
+
+.result-item.visible {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+/* Media queries for responsive design */
+@media (max-width: 768px) {
+    #resultsTable {
+        font-size: 0.875rem;
+    }
+    
+    #resultsTable th, #resultsTable td {
+        padding: 0.75rem;
+    }
+    
+    .custom-cursor {
+        display: none;
     }
 }

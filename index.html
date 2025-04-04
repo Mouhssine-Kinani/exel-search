@@ -3,26 +3,45 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Excel Search App</title>
+    <title>CENTRELEC Spare Parts Finder</title>
+    <!-- Base libraries -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.sheetjs.com/xlsx-0.19.3/package/dist/xlsx.full.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/fuse.js@6.6.2"></script>
+    
+    <!-- Animation libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.11.4/gsap.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/particles.js/2.0.0/particles.min.js"></script>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Custom styles -->
     <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="animations.css">
+    
     <style>
-        
+        body { font-family: 'Space Grotesk', sans-serif; }
     </style>
 </head>
 <body class="bg-gray-100 min-h-screen">
+    <!-- Particles background -->
+    <div id="particles-js"></div>
+    
+    <!-- Optional: Custom cursor for extra flair -->
+    <div class="custom-cursor"></div>
     <div class="container mx-auto px-4 py-8">
         <div class="text-center mb-8">
             <img src="s5_logo.png" alt="CENTRELEC Logo" class="h-16 mx-auto">
         </div>
         
-        <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+        <div class="card bg-white rounded-lg shadow-md p-6 mb-6 animate-fade-in" style="animation-delay: 0.2s;">
+            <div class="card-glare"></div>
             <h2 class="text-xl font-semibold mb-4">Import Excel File</h2>
             <div class="flex items-center justify-center w-full">
-                <label for="fileInput" class="flex flex-col items-center justify-center w-full h-32 border-2 border-blue-300 border-dashed rounded-lg cursor-pointer bg-blue-50 hover:bg-blue-100">
-                    <div class="flex flex-col items-center justify-center pt-5 pb-6">
+                <label for="fileInput" class="file-upload-area flex flex-col items-center justify-center w-full h-32 border-2 border-blue-300 border-dashed rounded-lg cursor-pointer bg-blue-50 hover:bg-blue-100">
+                    <div class="flex flex-col items-center justify-center pt-5 pb-6 animate-pulse">
                         <svg class="w-10 h-10 mb-3 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
                         </svg>
@@ -35,12 +54,12 @@
             <div id="fileName" class="mt-2 text-center text-gray-500"></div>
         </div>
 
-        <div id="searchSection" class="bg-white rounded-lg shadow-md p-6 mb-6 hidden">
+        <div id="searchSection" class="card bg-white rounded-lg shadow-md p-6 mb-6 hidden animate-fade-in" style="animation-delay: 0.4s;">
             <h2 class="text-xl font-semibold mb-4">Search</h2>
             
             <div class="mb-4">
                 <label for="searchType" class="block text-sm font-medium text-gray-700 mb-1">Search By</label>
-                <select id="searchType" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <select id="searchType" class="modern-input w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
                     <option value="ref_article">Reference Article</option>
                     <option value="designation">Designation</option>
                 </select>
@@ -48,13 +67,16 @@
             
             <div class="mb-4">
                 <label for="searchInput" class="block text-sm font-medium text-gray-700 mb-1">Search Terms (separate with commas or new lines)</label>
-                <textarea id="searchInput" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                <textarea id="searchInput" class="modern-input w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" 
                     placeholder="Enter one or more search terms..." rows="5"></textarea>
             </div>
             
             <div class="flex space-x-2">
-                <button id="searchBtn" class="flex-grow bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md transition duration-300">Search</button>
-                <button id="downloadBtn" class="hidden bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-md transition duration-300">
+                <button id="searchBtn" class="flex-grow bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md transition duration-300">
+                    <span>Search</span>
+                    <span class="ripple-container"></span>
+                </button>
+                <button id="downloadBtn" class="download-btn hidden bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-md transition duration-300">
                     <svg class="w-5 h-5 inline-block mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
                     </svg>
@@ -63,7 +85,7 @@
             </div>
         </div>
 
-        <div id="resultsSection" class="hidden">
+        <div id="resultsSection" class="hidden animate-fade-in">
             <div id="matchedResults" class="bg-white rounded-lg shadow-md p-6 mb-6">
                 <h2 class="text-xl font-semibold mb-4">Matched Inputs</h2>
                 <div id="matchedCount" class="mb-4 p-3 bg-green-50 text-green-800 rounded-lg border border-green-200">
@@ -81,7 +103,7 @@
                 </div>
             </div>
 
-            <div id="unmatchedSection" class="bg-white rounded-lg shadow-md p-6 hidden">
+            <div id="unmatchedSection" class="card bg-white rounded-lg shadow-md p-6 hidden">
                 <h2 class="text-xl font-semibold mb-4">Unmatched Inputs</h2>
                 <div id="unmatchedCount" class="mb-4 p-3 bg-red-50 text-red-800 rounded-lg border border-red-200"></div>
                 <div id="unmatchedInputs" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
@@ -94,5 +116,7 @@
     </footer>
     
     <script src="script.js"></script>
+    <script src="animations.js"></script>
+    <script src="init.js"></script>
 </body>
 </html>
