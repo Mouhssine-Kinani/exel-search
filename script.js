@@ -488,12 +488,44 @@ function displayMatchedQueries(matched, totalQueries) {
     matchedCount.textContent = `Matched Inputs: ${matched.length}/${totalQueries}`;
     matchedCount.classList.add('animate-fade-in');
     
-    // Display matched queries without animation
+    // Display matched queries with match counts
     matchedInputs.innerHTML = '';
+    
+    // Create a map of query to its matches
+    const queryMatches = new Map();
+    
+    // Count matches for each query
+    matchedResults.forEach(item => {
+        const query = matchedQueries.find(q => {
+            const cleanTerm = q.trim().toLowerCase();
+            return flexibleMatch(item.ref_article, cleanTerm, 'contains') || 
+                   flexibleMatch(item.designation, cleanTerm, 'contains');
+        });
+        
+        if (query) {
+            const count = queryMatches.get(query) || 0;
+            queryMatches.set(query, count + 1);
+        }
+    });
+    
+    // Display queries with their match counts
     matched.forEach((query) => {
         const div = document.createElement('div');
-        div.className = 'matched-item p-2 rounded';
-        div.textContent = query;
+        div.className = 'matched-item p-2 rounded flex items-center justify-between';
+        
+        // Create query text
+        const querySpan = document.createElement('span');
+        querySpan.className = 'flex-1';
+        querySpan.textContent = query;
+        
+        // Create match count badge
+        const count = queryMatches.get(query) || 0;
+        const countBadge = document.createElement('span');
+        countBadge.className = 'px-2 py-1 text-sm bg-blue-100 text-blue-800 rounded-full ml-2';
+        countBadge.textContent = `${count} matches`;
+        
+        div.appendChild(querySpan);
+        div.appendChild(countBadge);
         matchedInputs.appendChild(div);
     });
     
