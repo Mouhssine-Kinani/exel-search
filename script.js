@@ -1,7 +1,8 @@
 // Global variables
 let excelData = [];
-let fuseRefArticle = null;
-let fuseDesignation = null;
+let matchedResults = []; // Store matched results for download
+let matchedQueries = []; // Store queries that matched at least one article
+let unmatchedQueries = []; // Store queries that didn't match any article
 
 // DOM elements
 const fileInput = document.getElementById('fileInput');
@@ -9,21 +10,27 @@ const fileName = document.getElementById('fileName');
 const searchSection = document.getElementById('searchSection');
 const resultsSection = document.getElementById('resultsSection');
 const searchBtn = document.getElementById('searchBtn');
-const refArticleInput = document.getElementById('refArticle');
-const designationInput = document.getElementById('designation');
-const tableHeader = document.getElementById('tableHeader');
-const tableBody = document.getElementById('tableBody');
+const searchType = document.getElementById('searchType');
+const searchInput = document.getElementById('searchInput');
 const noMatchesFound = document.getElementById('noMatchesFound');
 const unmatchedSection = document.getElementById('unmatchedSection');
 const unmatchedInputs = document.getElementById('unmatchedInputs');
+const matchedInputs = document.getElementById('matchedInputs');
 const debugBtn = document.getElementById('debugBtn');
 const debugOutput = document.getElementById('debugOutput');
+const downloadBtn = document.getElementById('downloadBtn');
+const matchedCount = document.getElementById('matchedCount');
+const unmatchedCount = document.getElementById('unmatchedCount');
+const matchedTable = document.getElementById('matchedTable');
 
 // File input event listener
 fileInput.addEventListener('change', handleFileUpload);
 
 // Search button event listener
 searchBtn.addEventListener('click', performSearch);
+
+// Download button event listener
+downloadBtn.addEventListener('click', downloadResults);
 
 // Debug button event listener
 debugBtn.addEventListener('click', function() {
@@ -67,6 +74,33 @@ debugBtn.addEventListener('click', function() {
         debugOutput.innerHTML = debugHtml;
     }
 });
+
+// Function to download results as Excel
+function downloadResults() {
+    if (!matchedResults || matchedResults.length === 0) {
+        alert('No results to download');
+        return;
+    }
+    
+    try {
+        // Create a new workbook
+        const wb = XLSX.utils.book_new();
+        
+        // Convert matched results to worksheet - preserving original data format
+        const ws = XLSX.utils.json_to_sheet(matchedResults);
+        
+        // Add worksheet to workbook
+        XLSX.utils.book_append_sheet(wb, ws, 'SearchResults');
+        
+        // Generate download with current date in filename
+        const now = new Date();
+        const dateStr = `${now.getFullYear()}-${(now.getMonth()+1).toString().padStart(2, '0')}-${now.getDate().toString().padStart(2, '0')}`;
+        XLSX.writeFile(wb, `search_results_${dateStr}.xlsx`);
+    } catch (error) {
+        console.error('Error creating Excel file:', error);
+        alert('Error creating Excel file: ' + error.message);
+    }
+}
 
 /**
  * Handle Excel file upload and processing
@@ -206,21 +240,31 @@ function handleFileUpload(e) {
 }
 
 /**
+ * Parse input text into an array of search terms, handling both commas and line breaks
+ */
+function parseSearchTerms(input) {
+    if (!input) return [];
+    
+    // Replace line breaks with commas, then split by comma
+    const normalized = input.replace(/\n/g, ',');
+    
+    return normalized.split(',')
+        .map(term => term.trim())
+        .filter(term => term.length > 0);
+}
+
+/**
  * Perform search based on user input
  */
 function performSearch() {
     resetResults();
     
-    const refArticles = refArticleInput.value.split(',')
-        .map(item => item.trim())
-        .filter(item => item.length > 0);
+    // Get the selected search type
+    const selectedType = searchType.value; // 'ref_article' or 'designation'
+    const searchTerms = parseSearchTerms(searchInput.value);
     
-    const designations = designationInput.value.split(',')
-        .map(item => item.trim())
-        .filter(item => item.length > 0);
-    
-    if (refArticles.length === 0 && designations.length === 0) {
-        alert('Please enter at least one reference article or designation');
+    if (searchTerms.length === 0) {
+        alert('Please enter at least one search term');
         return;
     }
     
@@ -229,271 +273,182 @@ function performSearch() {
         return;
     }
     
-    console.log("Searching for ref_articles:", refArticles);
-    console.log("Searching for designations:", designations);
+    console.log(`Searching in ${selectedType} for terms:`, searchTerms);
     
+    // Reset query tracking arrays
+    matchedQueries = [];
+    unmatchedQueries = [];
+    matchedResults = [];
+    
+    // Perform search based on selected type
+    if (selectedType === 'ref_article') {
+        // Search for each term individually to track which ones matched
+        searchTerms.forEach(term => {
+            const result = searchSingleTerm(term, 'ref_article');
+            
+            if (result.matches.length > 0) {
+                matchedQueries.push(term);
+                // Add unique results to matchedResults array
+                result.matches.forEach(item => {
+                    // Check if this item is already in matchedResults
+                    const exists = matchedResults.some(existing => 
+                        existing.ref_article === item.ref_article);
+                    
+                    if (!exists) {
+                        matchedResults.push(item);
+                    }
+                });
+            } else {
+                unmatchedQueries.push(term);
+            }
+        });
+    } else {
+        // Search in designation field
+        searchTerms.forEach(term => {
+            const result = searchSingleTerm(term, 'designation');
+            
+            if (result.matches.length > 0) {
+                matchedQueries.push(term);
+                // Add unique results to matchedResults array
+                result.matches.forEach(item => {
+                    // Check if this item is already in matchedResults
+                    const exists = matchedResults.some(existing => 
+                        existing.ref_article === item.ref_article);
+                    
+                    if (!exists) {
+                        matchedResults.push(item);
+                    }
+                });
+            } else {
+                unmatchedQueries.push(term);
+            }
+        });
+    }
+    
+    // Show results
     resultsSection.classList.remove('hidden');
     
-    // Search for reference articles
-    const refResults = searchByRefArticle(refArticles);
-    
-    // Search for designations
-    const desResults = searchByDesignation(designations);
-    
-    // Combine and display results
-    displayResults(refResults, desResults);
-    
-    // Display unmatched inputs
-    displayUnmatched(refResults.unmatched, desResults.unmatched);
+    // Display matched and unmatched query lists
+    displayMatchedQueries(matchedQueries, searchTerms.length);
+    displayUnmatchedQueries(unmatchedQueries, searchTerms.length);
 }
 
 /**
- * Search by reference article - prioritize exact matches
+ * Search for a single term in the specified field
  */
-function searchByRefArticle(refArticles) {
-    const results = [];
-    const unmatched = [];
+function searchSingleTerm(term, field) {
+    const matches = [];
     
-    if (refArticles.length === 0) {
-        return { results, unmatched };
-    }
+    // Clean and normalize the search term
+    const cleanTerm = term.trim().toLowerCase();
+    console.log(`Searching for ${field}: "${cleanTerm}"`);
     
-    // For each search term
-    refArticles.forEach(ref => {
-        let found = false;
-        let matches = [];
-        
-        // Clean and normalize the search term
-        const cleanRef = ref.trim().toLowerCase();
-        console.log(`Searching for ref_article: "${cleanRef}"`);
-        
-        // 1. Try exact match first (case insensitive)
-        const exactMatches = excelData.filter(item => {
-            if (!item.ref_article) return false;
-            const itemRef = item.ref_article.toString().trim().toLowerCase();
-            return itemRef === cleanRef;
-        });
-        
-        if (exactMatches.length > 0) {
-            console.log(`Found ${exactMatches.length} exact matches for "${cleanRef}"`);
-            matches = exactMatches;
-            found = true;
-        } else {
-            // 2. Try startsWith match (prioritize items that start with the search term)
-            const startsWithMatches = excelData.filter(item => {
-                if (!item.ref_article) return false;
-                const itemRef = item.ref_article.toString().trim().toLowerCase();
-                return itemRef.startsWith(cleanRef);
-            });
-            
-            if (startsWithMatches.length > 0) {
-                console.log(`Found ${startsWithMatches.length} startsWith matches for "${cleanRef}"`);
-                matches = startsWithMatches;
-                found = true;
-            } else {
-                // 3. Try contains match (search term is within the field)
-                const containsMatches = excelData.filter(item => {
-                    if (!item.ref_article) return false;
-                    const itemRef = item.ref_article.toString().trim().toLowerCase();
-                    return itemRef.includes(cleanRef);
-                });
-                
-                if (containsMatches.length > 0) {
-                    console.log(`Found ${containsMatches.length} contains matches for "${cleanRef}"`);
-                    matches = containsMatches;
-                    found = true;
-                } else {
-                    // 4. Try more lenient contains (item ref is within search term)
-                    const reverseContainsMatches = excelData.filter(item => {
-                        if (!item.ref_article) return false;
-                        const itemRef = item.ref_article.toString().trim().toLowerCase();
-                        return cleanRef.includes(itemRef) && itemRef.length > 2; // Only consider meaningful matches
-                    });
-                    
-                    if (reverseContainsMatches.length > 0) {
-                        console.log(`Found ${reverseContainsMatches.length} reverse contains matches for "${cleanRef}"`);
-                        matches = reverseContainsMatches;
-                        found = true;
-                    }
-                }
-            }
-        }
-        
-        // Add matches to results if found
-        if (found && matches.length > 0) {
-            results.push(...matches);
-        } else {
-            // No matches found
-            unmatched.push({ value: ref, type: 'ref_article' });
-            console.log(`No matches found for "${cleanRef}"`);
-        }
+    // 1. Try exact match first (case insensitive)
+    const exactMatches = excelData.filter(item => {
+        if (!item[field]) return false;
+        const itemValue = item[field].toString().trim().toLowerCase();
+        return itemValue === cleanTerm;
     });
     
-    return { results, unmatched };
-}
-
-/**
- * Search by designation - prioritize exact matches
- */
-function searchByDesignation(designations) {
-    const results = [];
-    const unmatched = [];
-    
-    if (designations.length === 0) {
-        return { results, unmatched };
-    }
-    
-    // For each search term
-    designations.forEach(des => {
-        let found = false;
-        let matches = [];
-        
-        // Clean and normalize the search term
-        const cleanDes = des.trim().toLowerCase();
-        console.log(`Searching for designation: "${cleanDes}"`);
-        
-        // 1. Try exact match first (case insensitive)
-        const exactMatches = excelData.filter(item => {
-            if (!item.designation) return false;
-            const itemDes = item.designation.toString().trim().toLowerCase();
-            return itemDes === cleanDes;
+    if (exactMatches.length > 0) {
+        console.log(`Found ${exactMatches.length} exact matches for "${cleanTerm}"`);
+        matches.push(...exactMatches);
+    } else {
+        // 2. Try startsWith match
+        const startsWithMatches = excelData.filter(item => {
+            if (!item[field]) return false;
+            const itemValue = item[field].toString().trim().toLowerCase();
+            return itemValue.startsWith(cleanTerm);
         });
         
-        if (exactMatches.length > 0) {
-            console.log(`Found ${exactMatches.length} exact matches for "${cleanDes}"`);
-            matches = exactMatches;
-            found = true;
+        if (startsWithMatches.length > 0) {
+            console.log(`Found ${startsWithMatches.length} startsWith matches for "${cleanTerm}"`);
+            matches.push(...startsWithMatches);
         } else {
-            // 2. Try startsWith match (prioritize items that start with the search term)
-            const startsWithMatches = excelData.filter(item => {
-                if (!item.designation) return false;
-                const itemDes = item.designation.toString().trim().toLowerCase();
-                return itemDes.startsWith(cleanDes);
+            // 3. Try contains match
+            const containsMatches = excelData.filter(item => {
+                if (!item[field]) return false;
+                const itemValue = item[field].toString().trim().toLowerCase();
+                return itemValue.includes(cleanTerm);
             });
             
-            if (startsWithMatches.length > 0) {
-                console.log(`Found ${startsWithMatches.length} startsWith matches for "${cleanDes}"`);
-                matches = startsWithMatches;
-                found = true;
+            if (containsMatches.length > 0) {
+                console.log(`Found ${containsMatches.length} contains matches for "${cleanTerm}"`);
+                matches.push(...containsMatches);
             } else {
-                // 3. Try contains match (search term is within the field)
-                const containsMatches = excelData.filter(item => {
-                    if (!item.designation) return false;
-                    const itemDes = item.designation.toString().trim().toLowerCase();
-                    return itemDes.includes(cleanDes);
-                });
-                
-                if (containsMatches.length > 0) {
-                    console.log(`Found ${containsMatches.length} contains matches for "${cleanDes}"`);
-                    matches = containsMatches;
-                    found = true;
-                } else {
-                    // 4. Try word match (search for individual words in multi-word designations)
-                    if (cleanDes.includes(' ')) {
-                        const words = cleanDes.split(' ').filter(w => w.length > 2); // Skip small words
-                        
-                        if (words.length > 0) {
-                            const wordMatches = excelData.filter(item => {
-                                if (!item.designation) return false;
-                                const itemDes = item.designation.toString().trim().toLowerCase();
-                                
-                                // Check if any significant word matches
-                                return words.some(word => itemDes.includes(word));
-                            });
+                // 4. For multiword searches, try word matching
+                if (cleanTerm.includes(' ')) {
+                    const words = cleanTerm.split(' ').filter(w => w.length > 2);
+                    
+                    if (words.length > 0) {
+                        const wordMatches = excelData.filter(item => {
+                            if (!item[field]) return false;
+                            const itemValue = item[field].toString().trim().toLowerCase();
                             
-                            if (wordMatches.length > 0) {
-                                console.log(`Found ${wordMatches.length} word matches for "${cleanDes}"`);
-                                matches = wordMatches;
-                                found = true;
-                            }
+                            return words.some(word => itemValue.includes(word));
+                        });
+                        
+                        if (wordMatches.length > 0) {
+                            console.log(`Found ${wordMatches.length} word matches for "${cleanTerm}"`);
+                            matches.push(...wordMatches);
                         }
                     }
                 }
             }
         }
-        
-        // Add matches to results if found
-        if (found && matches.length > 0) {
-            results.push(...matches);
-        } else {
-            // No matches found
-            unmatched.push({ value: des, type: 'designation' });
-            console.log(`No matches found for "${cleanDes}"`);
-        }
-    });
+    }
     
-    return { results, unmatched };
+    return { term, matches };
 }
 
 /**
- * Display search results in the table
+ * Display matched query terms
  */
-function displayResults(refResults, desResults) {
-    // Combine results
-    let combinedResults = [...refResults.results, ...desResults.results];
-    
-    // Remove duplicates by ref_article (assuming it's unique)
-    const uniqueMap = new Map();
-    combinedResults.forEach(item => {
-        // Only keep the first occurrence of each ref_article
-        if (item.ref_article && !uniqueMap.has(item.ref_article.toString())) {
-            uniqueMap.set(item.ref_article.toString(), item);
-        }
-    });
-    
-    const uniqueResults = Array.from(uniqueMap.values());
-    
-    if (uniqueResults.length === 0) {
+function displayMatchedQueries(matched, totalQueries) {
+    if (matched.length === 0) {
         noMatchesFound.classList.remove('hidden');
+        matchedCount.textContent = 'No matches found';
+        downloadBtn.classList.add('hidden');
         return;
     }
     
-    // Get all keys from the first item to create table headers
-    if (uniqueResults.length > 0) {
-        const keys = Object.keys(uniqueResults[0]);
-        
-        // Create table header
-        tableHeader.innerHTML = '';
-        keys.forEach(key => {
-            const th = document.createElement('th');
-            th.textContent = key.toUpperCase();
-            tableHeader.appendChild(th);
-        });
-        
-        // Create table rows
-        tableBody.innerHTML = '';
-        uniqueResults.forEach(result => {
-            const row = document.createElement('tr');
-            
-            keys.forEach(key => {
-                const td = document.createElement('td');
-                td.textContent = result[key] !== undefined ? result[key] : '';
-                row.appendChild(td);
-            });
-            
-            tableBody.appendChild(row);
-        });
+    // Update matched count
+    matchedCount.textContent = `Matched Inputs: ${matched.length}/${totalQueries}`;
+    
+    // Display matched queries
+    matchedInputs.innerHTML = '';
+    matched.forEach(query => {
+        const div = document.createElement('div');
+        div.className = 'matched-item p-2 bg-green-50 border-l-4 border-green-500 rounded';
+        div.textContent = query;
+        matchedInputs.appendChild(div);
+    });
+    
+    // Show download button if there are matched results
+    if (matchedResults.length > 0) {
+        downloadBtn.classList.remove('hidden');
+    } else {
+        downloadBtn.classList.add('hidden');
     }
 }
 
 /**
- * Display unmatched inputs
+ * Display unmatched queries
  */
-function displayUnmatched(refUnmatched, desUnmatched) {
-    const allUnmatched = [...refUnmatched, ...desUnmatched];
-    
-    if (allUnmatched.length === 0) {
+function displayUnmatchedQueries(unmatched, totalQueries) {
+    if (unmatched.length === 0) {
         unmatchedSection.classList.add('hidden');
         return;
     }
     
     unmatchedSection.classList.remove('hidden');
-    unmatchedInputs.innerHTML = '';
+    unmatchedCount.textContent = `Unmatched Inputs: ${unmatched.length}/${totalQueries}`;
     
-    allUnmatched.forEach(item => {
+    unmatchedInputs.innerHTML = '';
+    unmatched.forEach(query => {
         const div = document.createElement('div');
-        div.className = 'unmatched-item';
-        div.textContent = `${item.type === 'ref_article' ? 'Reference' : 'Designation'}: ${item.value}`;
+        div.className = 'unmatched-item p-2 bg-red-50 border-l-4 border-red-500 rounded';
+        div.textContent = query;
         unmatchedInputs.appendChild(div);
     });
 }
@@ -502,16 +457,13 @@ function displayUnmatched(refUnmatched, desUnmatched) {
  * Reset search results
  */
 function resetResults() {
-    tableHeader.innerHTML = '';
-    tableBody.innerHTML = '';
+    matchedResults = [];
+    matchedQueries = [];
+    unmatchedQueries = [];
+    matchedInputs.innerHTML = '';
     unmatchedInputs.innerHTML = '';
+    downloadBtn.classList.add('hidden');
     noMatchesFound.classList.add('hidden');
     unmatchedSection.classList.add('hidden');
+    resultsSection.classList.add('hidden');
 }
-
-// Add export functionality to window object for testing
-window.exportData = {
-    getExcelData: () => excelData,
-    getFuseRefArticle: () => fuseRefArticle,
-    getFuseDesignation: () => fuseDesignation
-};
