@@ -320,37 +320,116 @@ function performSearch() {
  */
 function normalizeText(text) {
     if (!text) return '';
-    
-    // Convert to string if not already
-    const str = String(text);
-    
-    // Normalize and remove diacritical marks
-    return str.normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '') // Remove combining diacritical marks
-        .toLowerCase()
-        .trim();
+    // Normalize special characters (diacritics)
+    return text.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
 }
 
 /**
  * Check if two strings match using flexible criteria
  */
 function flexibleMatch(source, target, matchType = 'contains') {
-    if (!source || !target) return false;
-    
-    // Normalize both strings
+    // Normalize both strings for accent-insensitive comparison
     const normalizedSource = normalizeText(source);
     const normalizedTarget = normalizeText(target);
     
-    // Check based on match type
     switch (matchType) {
         case 'exact':
             return normalizedSource === normalizedTarget;
         case 'startsWith':
             return normalizedSource.startsWith(normalizedTarget);
         case 'contains':
+            return normalizedSource.includes(normalizedTarget);
         default:
             return normalizedSource.includes(normalizedTarget);
     }
+}
+
+/**
+ * Search for a single term in the specified field with enhanced matching
+ */
+function searchSingleTerm(term, field) {
+    const matches = [];
+    
+    // Clean and normalize the search term
+    const cleanTerm = term.trim();
+    console.log(`Searching for ${field}: "${cleanTerm}"`);
+    
+    if (field === 'ref_article') {
+        // For ref_article: use exact match only
+        const exactMatches = excelData.filter(item => {
+            if (!item[field]) return false;
+            // Normalize both for accent-insensitive comparison
+            return normalizeText(item[field]) === normalizeText(cleanTerm);
+        });
+        
+        if (exactMatches.length > 0) {
+            console.log(`Found ${exactMatches.length} exact matches for ref_article "${cleanTerm}"`);
+            matches.push(...exactMatches);
+        }
+    } else {
+        // For designation: use flexible matching
+        // 1. Try exact match first
+        const exactMatches = excelData.filter(item => {
+            if (!item[field]) return false;
+            return flexibleMatch(item[field], cleanTerm, 'exact');
+        });
+        
+        if (exactMatches.length > 0) {
+            console.log(`Found ${exactMatches.length} exact matches for designation "${cleanTerm}"`);
+            matches.push(...exactMatches);
+        }
+        
+        // 2. Try startsWith match
+        const startsWithMatches = excelData.filter(item => {
+            if (!item[field]) return false;
+            if (matches.includes(item)) return false;
+            return flexibleMatch(item[field], cleanTerm, 'startsWith');
+        });
+        
+        if (startsWithMatches.length > 0) {
+            console.log(`Found ${startsWithMatches.length} startsWith matches for designation "${cleanTerm}"`);
+            matches.push(...startsWithMatches);
+        }
+        
+        // 3. Try contains match
+        const containsMatches = excelData.filter(item => {
+            if (!item[field]) return false;
+            if (matches.includes(item)) return false;
+            return flexibleMatch(item[field], cleanTerm, 'contains');
+        });
+        
+        if (containsMatches.length > 0) {
+            console.log(`Found ${containsMatches.length} contains matches for designation "${cleanTerm}"`);
+            matches.push(...containsMatches);
+        }
+        
+        // 4. Check for similar words/variations
+        const similarMatches = excelData.filter(item => {
+            if (!item[field]) return false;
+            if (matches.includes(item)) return false;
+            
+            const itemValue = String(item[field]);
+            const itemWords = itemValue.split(/\s+/);
+            
+            // If search term has multiple words
+            if (cleanTerm.includes(' ')) {
+                const searchWords = cleanTerm.split(' ').filter(w => w.length > 2);
+                return searchWords.some(searchWord => 
+                    itemWords.some(itemWord => areSimilarWords(itemWord, searchWord))
+                );
+            }
+            
+            // Single word search term
+            return itemWords.some(word => areSimilarWords(word, cleanTerm));
+        });
+        
+        if (similarMatches.length > 0) {
+            console.log(`Found ${similarMatches.length} similar word matches for designation "${cleanTerm}"`);
+            matches.push(...similarMatches);
+        }
+    }
+    
+    return { term, matches };
 }
 
 /**
@@ -394,81 +473,6 @@ function areSimilarWords(str1, str2) {
     
     // Return true if similarity is above threshold
     return similarity > 0.4; // Adjust threshold as needed
-}
-
-/**
- * Search for a single term in the specified field with enhanced matching
- */
-function searchSingleTerm(term, field) {
-    const matches = [];
-    
-    // Clean and normalize the search term
-    const cleanTerm = term.trim().toLowerCase();
-    console.log(`Searching for ${field}: "${cleanTerm}"`);
-    
-    // 1. Try exact match first (including accent-insensitive)
-    const exactMatches = excelData.filter(item => {
-        if (!item[field]) return false;
-        return flexibleMatch(item[field], cleanTerm, 'exact');
-    });
-    
-    if (exactMatches.length > 0) {
-        console.log(`Found ${exactMatches.length} exact matches for "${cleanTerm}"`);
-        matches.push(...exactMatches);
-    }
-    
-    // 2. Try startsWith match (including accent-insensitive)
-    const startsWithMatches = excelData.filter(item => {
-        if (!item[field]) return false;
-        if (matches.includes(item)) return false; // Skip if already matched
-        return flexibleMatch(item[field], cleanTerm, 'startsWith');
-    });
-    
-    if (startsWithMatches.length > 0) {
-        console.log(`Found ${startsWithMatches.length} startsWith matches for "${cleanTerm}"`);
-        matches.push(...startsWithMatches);
-    }
-    
-    // 3. Try contains match (including accent-insensitive)
-    const containsMatches = excelData.filter(item => {
-        if (!item[field]) return false;
-        if (matches.includes(item)) return false; // Skip if already matched
-        return flexibleMatch(item[field], cleanTerm, 'contains');
-    });
-    
-    if (containsMatches.length > 0) {
-        console.log(`Found ${containsMatches.length} contains matches for "${cleanTerm}"`);
-        matches.push(...containsMatches);
-    }
-    
-    // 4. Check for similar words/variations
-    const similarMatches = excelData.filter(item => {
-        if (!item[field]) return false;
-        if (matches.includes(item)) return false; // Skip if already matched
-        
-        const itemValue = String(item[field]);
-        
-        // Handle multi-word fields and search terms
-        const itemWords = itemValue.split(/\s+/);
-        
-        // If search term has multiple words
-        if (cleanTerm.includes(' ')) {
-            const searchWords = cleanTerm.split(' ').filter(w => w.length > 2);
-            return searchWords.some(searchWord => 
-                itemWords.some(itemWord => areSimilarWords(itemWord, searchWord))
-            );
-        }
-        
-        // Single word search term
-        return itemWords.some(word => areSimilarWords(word, cleanTerm));
-    });
-    
-    if (similarMatches.length > 0) {
-        console.log(`Found ${similarMatches.length} similar word matches for "${cleanTerm}"`);
-        matches.push(...similarMatches);
-    }
-    
-    return { term, matches };
 }
 
 /**
