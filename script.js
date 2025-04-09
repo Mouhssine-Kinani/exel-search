@@ -355,16 +355,28 @@ function searchSingleTerm(term, field) {
     console.log(`Searching for ${field}: "${cleanTerm}"`);
     
     if (field === 'ref_article') {
-        // For ref_article: use exact match only
+        console.log(`Searching through ${excelData.length} records for ref_article match...`);
+        // For ref_article: use strict exact match
         const exactMatches = excelData.filter(item => {
             if (!item[field]) return false;
-            // Normalize both for accent-insensitive comparison
-            return normalizeText(item[field]) === normalizeText(cleanTerm);
+            
+            // Clean the reference value by trimming whitespace
+            const itemRef = String(item[field]).trim();
+            
+            // For references, we use strict case-sensitive exact matching
+            const isExactMatch = itemRef === cleanTerm;
+            
+            // Log every comparison for debugging
+            console.log(`Comparing: "${itemRef}" with "${cleanTerm}" => ${isExactMatch}`);
+            
+            return isExactMatch;
         });
         
         if (exactMatches.length > 0) {
             console.log(`Found ${exactMatches.length} exact matches for ref_article "${cleanTerm}"`);
             matches.push(...exactMatches);
+        } else {
+            console.log(`No exact matches found for ref_article "${cleanTerm}"`);
         }
     } else {
         // For designation: use flexible matching
@@ -488,45 +500,43 @@ function displayMatchedQueries(matched, totalQueries) {
         return;
     }
     
-    // Update matched count with animation
-    matchedCount.textContent = `Matched Inputs: ${matched.length}/${totalQueries}`;
+    // Count total matched items across all queries
+    const totalMatchedItems = matchedResults.length;
+    console.log('Total matched items:', totalMatchedItems);
+    console.log('Matched results array:', matchedResults);
+    
+    // Update matched count with animation and detailed info
+    matchedCount.textContent = `Matched Inputs: ${matched.length}/${totalQueries} (Total Items: ${totalMatchedItems})`;
     matchedCount.classList.add('animate-fade-in');
     
-    // Display matched queries with match counts
+    // Display each matched query with its match count
     matchedInputs.innerHTML = '';
-    
-    // Create a map of query to its matches
-    const queryMatches = new Map();
-    
-    // Count matches for each query
-    matchedResults.forEach(item => {
-        const query = matchedQueries.find(q => {
-            const cleanTerm = q.trim().toLowerCase();
-            return flexibleMatch(item.ref_article, cleanTerm, 'contains') || 
-                   flexibleMatch(item.designation, cleanTerm, 'contains');
-        });
+    matched.forEach(query => {
+        // Count matches based on the current search type (ref_article or designation)
+        const searchType = document.getElementById('searchType').value;
+        const matchCount = matchedResults.filter(result => {
+            const itemValue = String(result[searchType] || '').trim();
+            const queryValue = String(query).trim();
+            return itemValue === queryValue;
+        }).length;
         
-        if (query) {
-            const count = queryMatches.get(query) || 0;
-            queryMatches.set(query, count + 1);
-        }
-    });
-    
-    // Display queries with their match counts
-    matched.forEach((query) => {
+        console.log(`Query "${query}" has ${matchCount} matches in ${searchType}`);
+        
         const div = document.createElement('div');
-        div.className = 'matched-item p-2 rounded flex items-center justify-between';
+        div.className = 'matched-item result-item';
         
-        // Create query text
+        // Create query span
         const querySpan = document.createElement('span');
-        querySpan.className = 'flex-1';
+        querySpan.className = 'font-medium';
         querySpan.textContent = query;
         
-        // Create match count badge
-        const count = queryMatches.get(query) || 0;
+        // Create count badge with more detailed info
         const countBadge = document.createElement('span');
-        countBadge.className = 'px-2 py-1 text-sm bg-blue-100 text-blue-800 rounded-full ml-2';
-        countBadge.textContent = `${count} matches`;
+        countBadge.className = 'ml-2 px-2 py-1 bg-green-100 text-green-800 text-sm rounded-full';
+        countBadge.textContent = `${matchCount} match${matchCount !== 1 ? 'es' : ''}`;
+        
+        // Log the match count for debugging
+        console.log(`Query "${query}" matched ${matchCount} items`);
         
         div.appendChild(querySpan);
         div.appendChild(countBadge);
