@@ -198,15 +198,13 @@ function handleFileUpload(e) {
 }
 
 /**
- * Parse input text into an array of search terms, handling both commas and line breaks
+ * Parse input text into an array of search terms, splitting by line breaks only
  */
 function parseSearchTerms(input) {
     if (!input) return [];
     
-    // Replace line breaks with commas, then split by comma
-    const normalized = input.replace(/\n/g, ',');
-    
-    return normalized.split(',')
+    // Split by line breaks only
+    return input.split(/\n/)
         .map(term => term.trim())
         .filter(term => term.length > 0);
 }
