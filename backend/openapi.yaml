@@ -1,0 +1,231 @@
+openapi: 3.0.0
+info:
+  title: CENTRELEC Spare Parts Finder API
+  description: Server-side Excel parsing and search API for CENTRELEC Spare Parts Finder
+  version: 1.0.0
+servers:
+  - url: http://localhost:3000
+    description: Local development server
+paths:
+  /api/upload:
+    post:
+      summary: Upload Excel file for processing
+      description: Uploads an Excel file (.xlsx, .xls) for parsing and searching
+      tags:
+        - Excel Operations
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: Excel file to upload (.xlsx, .xls)
+      responses:
+        '200':
+          description: File uploaded successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: string
+                    example: FILE_UPLOADED
+                  message:
+                    type: string
+                    example: File uploaded successfully
+                  fileId:
+                    type: string
+                    example: 123e4567-e89b-12d3-a456-426614174000
+                  originalName:
+                    type: string
+                    example: spare_parts.xlsx
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/query:
+    post:
+      summary: Search Excel data based on criteria
+      description: Performs a search on previously uploaded Excel data
+      tags:
+        - Excel Operations
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - fileId
+                - searchField
+                - searchTerms
+              properties:
+                fileId:
+                  type: string
+                  description: ID of the uploaded file
+                  example: 123e4567-e89b-12d3-a456-426614174000
+                searchField:
+                  type: string
+                  description: Field name to search in
+                  example: ref_article
+                searchTerms:
+                  type: array
+                  description: Array of search terms
+                  items:
+                    type: string
+                  example: ["ABC123", "XYZ789"]
+      responses:
+        '200':
+          description: Search completed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: string
+                    example: SEARCH_COMPLETED
+                  matchedResults:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: true
+                    description: Array of matched results
+                  matchedQueries:
+                    type: array
+                    items:
+                      type: string
+                    description: Array of queries that matched at least one result
+                  unmatchedQueries:
+                    type: array
+                    items:
+                      type: string
+                    description: Array of queries that didn't match any result
+                  headers:
+                    type: array
+                    items:
+                      type: string
+                    description: Original headers from the Excel file
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: File not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/export:
+    get:
+      summary: Download search results as Excel file
+      description: Generates and downloads an Excel file with search results
+      tags:
+        - Excel Operations
+      parameters:
+        - name: fileId
+          in: query
+          required: true
+          schema:
+            type: string
+          description: ID of the uploaded file
+          example: 123e4567-e89b-12d3-a456-426614174000
+        - name: searchField
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Field name to search in
+          example: ref_article
+        - name: searchTerms
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Comma-separated list of search terms
+          example: ABC123,XYZ789
+      responses:
+        '200':
+          description: Excel file generated successfully
+          content:
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema:
+                type: string
+                format: binary
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: File not found or no results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /health:
+    get:
+      summary: Service health check
+      description: Checks if the service is running properly
+      tags:
+        - System
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  timestamp:
+                    type: string
+                    format: date-time
+                    example: 2025-04-17T00:00:00.000Z
+components:
+  schemas:
+    Error:
+      type: object
+      properties:
+        code:
+          type: string
+          description: Error code
+          example: FILE_NOT_FOUND
+        message:
+          type: string
+          description: Error message
+          example: File not found, please upload again
+        stack:
+          type: string
+          description: Stack trace (only in development)
+          example: Error at line 42...

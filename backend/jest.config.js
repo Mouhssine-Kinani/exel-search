@@ -1,0 +1,21 @@
+module.exports = {
+  testEnvironment: 'node',
+  testMatch: ['**/tests/**/*.test.js'],
+  collectCoverage: true,
+  coverageDirectory: 'coverage',
+  coverageReporters: ['text', 'lcov'],
+  collectCoverageFrom: [
+    'routes.js',
+    'excel-handler.js',
+    'middleware/**/*.js',
+    'utils/**/*.js'
+  ],
+  coverageThreshold: {
+    global: {
+      branches: 70,
+      functions: 70,
+      lines: 70,
+      statements: 70
+    }
+  }
+};

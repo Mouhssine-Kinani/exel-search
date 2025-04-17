@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Backend API Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1 {
+            color: #333;
+        }
+        .card {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 16px;
+            background-color: #f9f9f9;
+        }
+        button {
+            background-color: #4CAF50;
+            border: none;
+            color: white;
+            padding: 10px 20px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 4px 2px;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        pre {
+            background-color: #f0f0f0;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 4px;
+            margin-top: 10px;
+        }
+        .success {
+            background-color: #dff0d8;
+            color: #3c763d;
+        }
+        .error {
+            background-color: #f2dede;
+            color: #a94442;
+        }
+    </style>
+</head>
+<body>
+    <h1>Backend API Test</h1>
+    
+    <div class="card">
+        <h2>Health Check</h2>
+        <button id="healthCheck">Test Health Endpoint</button>
+        <div id="healthStatus" class="status"></div>
+    </div>
+    
+    <div class="card">
+        <h2>Upload Excel File</h2>
+        <input type="file" id="fileInput" accept=".xlsx, .xls">
+        <button id="uploadBtn">Upload</button>
+        <div id="uploadStatus" class="status"></div>
+    </div>
+    
+    <div class="card">
+        <h2>Search</h2>
+        <div>
+            <label for="fileId">File ID:</label>
+            <input type="text" id="fileId" placeholder="Enter file ID from upload">
+        </div>
+        <div>
+            <label for="searchField">Search Field:</label>
+            <input type="text" id="searchField" value="ref_article">
+        </div>
+        <div>
+            <label for="searchTerms">Search Terms (one per line):</label>
+            <textarea id="searchTerms" rows="4" cols="50" placeholder="Enter search terms, one per line"></textarea>
+        </div>
+        <button id="searchBtn">Search</button>
+        <div id="searchStatus" class="status"></div>
+        <pre id="searchResults"></pre>
+    </div>
+    
+    <div class="card">
+        <h2>Export Results</h2>
+        <button id="exportBtn" disabled>Export Results</button>
+        <div id="exportStatus" class="status"></div>
+    </div>
+    
+    <script>
+        // API Base URL
+        const API_BASE_URL = 'http://localhost:3000';
+        
+        // DOM Elements
+        const healthCheckBtn = document.getElementById('healthCheck');
+        const healthStatus = document.getElementById('healthStatus');
+        
+        const fileInput = document.getElementById('fileInput');
+        const uploadBtn = document.getElementById('uploadBtn');
+        const uploadStatus = document.getElementById('uploadStatus');
+        
+        const fileIdInput = document.getElementById('fileId');
+        const searchFieldInput = document.getElementById('searchField');
+        const searchTermsInput = document.getElementById('searchTerms');
+        const searchBtn = document.getElementById('searchBtn');
+        const searchStatus = document.getElementById('searchStatus');
+        const searchResults = document.getElementById('searchResults');
+        
+        const exportBtn = document.getElementById('exportBtn');
+        const exportStatus = document.getElementById('exportStatus');
+        
+        // Event Listeners
+        healthCheckBtn.addEventListener('click', checkHealth);
+        uploadBtn.addEventListener('click', uploadFile);
+        searchBtn.addEventListener('click', performSearch);
+        exportBtn.addEventListener('click', exportResults);
+        
+        // Health Check Function
+        async function checkHealth() {
+            try {
+                healthStatus.textContent = 'Checking...';
+                healthStatus.className = 'status';
+                
+                const response = await fetch(`${API_BASE_URL}/health`);
+                const data = await response.json();
+                
+                healthStatus.textContent = `Status: ${data.status}, Timestamp: ${data.timestamp}`;
+                healthStatus.className = 'status success';
+            } catch (error) {
+                healthStatus.textContent = `Error: ${error.message}`;
+                healthStatus.className = 'status error';
+            }
+        }
+        
+        // Upload File Function
+        async function uploadFile() {
+            try {
+                if (!fileInput.files || fileInput.files.length === 0) {
+                    uploadStatus.textContent = 'Please select a file first';
+                    uploadStatus.className = 'status error';
+                    return;
+                }
+                
+                uploadStatus.textContent = 'Uploading...';
+                uploadStatus.className = 'status';
+                
+                const formData = new FormData();
+                formData.append('file', fileInput.files[0]);
+                
+                const response = await fetch(`${API_BASE_URL}/api/upload`, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    uploadStatus.textContent = `Success: ${data.message}, File ID: ${data.fileId}`;
+                    uploadStatus.className = 'status success';
+                    fileIdInput.value = data.fileId;
+                } else {
+                    uploadStatus.textContent = `Error: ${data.message}`;
+                    uploadStatus.className = 'status error';
+                }
+            } catch (error) {
+                uploadStatus.textContent = `Error: ${error.message}`;
+                uploadStatus.className = 'status error';
+            }
+        }
+        
+        // Search Function
+        async function performSearch() {
+            try {
+                const fileId = fileIdInput.value.trim();
+                const searchField = searchFieldInput.value.trim();
+                const searchTermsText = searchTermsInput.value.trim();
+                
+                if (!fileId) {
+                    searchStatus.textContent = 'Please enter a file ID';
+                    searchStatus.className = 'status error';
+                    return;
+                }
+                
+                if (!searchField) {
+                    searchStatus.textContent = 'Please enter a search field';
+                    searchStatus.className = 'status error';
+                    return;
+                }
+                
+                if (!searchTermsText) {
+                    searchStatus.textContent = 'Please enter at least one search term';
+                    searchStatus.className = 'status error';
+                    return;
+                }
+                
+                // Parse search terms
+                const searchTerms = searchTermsText.split('\n')
+                    .map(term => term.trim())
+                    .filter(term => term.length > 0);
+                
+                searchStatus.textContent = 'Searching...';
+                searchStatus.className = 'status';
+                searchResults.textContent = '';
+                
+                const response = await fetch(`${API_BASE_URL}/api/query`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        fileId,
+                        searchField,
+                        searchTerms
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    searchStatus.textContent = `Success: Found ${data.matchedResults?.length || 0} matches`;
+                    searchStatus.className = 'status success';
+                    searchResults.textContent = JSON.stringify(data, null, 2);
+                    exportBtn.disabled = !(data.matchedResults && data.matchedResults.length > 0);
+                } else {
+                    searchStatus.textContent = `Error: ${data.message}`;
+                    searchStatus.className = 'status error';
+                    exportBtn.disabled = true;
+                }
+            } catch (error) {
+                searchStatus.textContent = `Error: ${error.message}`;
+                searchStatus.className = 'status error';
+                searchResults.textContent = '';
+                exportBtn.disabled = true;
+            }
+        }
+        
+        // Export Results Function
+        function exportResults() {
+            try {
+                const fileId = fileIdInput.value.trim();
+                const searchField = searchFieldInput.value.trim();
+                const searchTermsText = searchTermsInput.value.trim();
+                
+                if (!fileId || !searchField || !searchTermsText) {
+                    exportStatus.textContent = 'Missing required parameters';
+                    exportStatus.className = 'status error';
+                    return;
+                }
+                
+                // Parse search terms
+                const searchTerms = searchTermsText.split('\n')
+                    .map(term => term.trim())
+                    .filter(term => term.length > 0)
+                    .join(',');
+                
+                exportStatus.textContent = 'Preparing download...';
+                exportStatus.className = 'status';
+                
+                // Create URL with query parameters
+                const queryParams = new URLSearchParams({
+                    fileId,
+                    searchField,
+                    searchTerms
+                });
+                
+                // Create download URL
+                const downloadUrl = `${API_BASE_URL}/api/export?${queryParams}`;
+                
+                // Create a temporary link element
+                const link = document.createElement('a');
+                link.href = downloadUrl;
+                link.setAttribute('download', ''); // Browser will determine filename from Content-Disposition header
+                document.body.appendChild(link);
+                
+                // Trigger download
+                link.click();
+                
+                // Clean up
+                document.body.removeChild(link);
+                
+                exportStatus.textContent = 'Download initiated';
+                exportStatus.className = 'status success';
+            } catch (error) {
+                exportStatus.textContent = `Error: ${error.message}`;
+                exportStatus.className = 'status error';
+            }
+        }
+    </script>
+</body>
+</html>
