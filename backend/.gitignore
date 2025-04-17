@@ -28,3 +28,7 @@ temp/
 # Uploads directory content
 uploads/*
 !uploads/.gitkeep
+
+# Excel files
+*.xlsx
+*.xls
